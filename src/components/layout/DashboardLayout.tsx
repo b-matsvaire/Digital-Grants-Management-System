@@ -2,7 +2,7 @@
 import { ReactNode } from "react";
 import SideNav from "./SideNav";
 import Header from "./Header";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "@/components/auth";
 
 type DashboardLayoutProps = {
   children: ReactNode;

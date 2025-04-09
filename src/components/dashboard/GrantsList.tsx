@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Clock, XCircle, Calendar, User } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Calendar, User, Loader2 } from "lucide-react";
 import { 
   Table, 
   TableHeader, 
@@ -14,44 +14,64 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useAuth } from "@/components/auth";
 import { Grant } from "@/types/grants";
+import { useToast } from "@/components/ui/use-toast";
 
 const GrantsList = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [grants, setGrants] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchGrants = async () => {
       try {
         if (!user) return;
         
-        let query = supabase.from('grants').select('*');
+        let query = supabase.from('grants').select('*, profiles(full_name)');
         
         // If user is a researcher, only fetch their grants
         if (user.role === 'researcher') {
           query = query.eq('submitter_id', user.id);
         }
+        // For admin roles, fetch all grants
+        // No filtering needed for admin, they should see all grants
 
         // Limit to 5 most recent grants
         const { data, error } = await query
           .order('created_at', { ascending: false })
           .limit(5);
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching grants:', error);
+          throw error;
+        }
         
-        setGrants(data || []);
+        console.log("Fetched grants:", data, "User role:", user.role);
+        
+        // Process the data to include submitter name
+        const processedData = data?.map(grant => ({
+          ...grant,
+          submitter_name: grant.profiles?.full_name || 'Unknown'
+        })) || [];
+        
+        setGrants(processedData);
       } catch (error) {
         console.error('Error fetching grants:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch grants. Please try again.",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchGrants();
-  }, [user]);
+  }, [user, toast]);
 
   const StatusBadge = ({ status }: { status: Grant['status'] }) => {
     const statusConfig = {
@@ -114,7 +134,10 @@ const GrantsList = () => {
           </Button>
         </div>
         <div className="p-8 text-center">
-          <p className="text-muted-foreground">Loading grants...</p>
+          <div className="flex justify-center items-center">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+            <p className="text-muted-foreground">Loading grants...</p>
+          </div>
         </div>
       </div>
     );
@@ -179,7 +202,7 @@ const GrantsList = () => {
                         {grant.end_date ? new Date(grant.end_date).toLocaleDateString() : 'Ongoing'}
                       </>
                     ) : (
-                      `${grant.duration} months`
+                      `${grant.duration || 0} months`
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden md:table-cell">

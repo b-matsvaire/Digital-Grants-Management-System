@@ -1,40 +1,16 @@
 
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useState, ReactNode, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { Session, User } from "@supabase/supabase-js";
+import { AuthContextType, UserProfile } from "./types";
+import { fetchUserProfile, clearAuthData } from "./authUtils";
 
-interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
-interface AuthContextType {
-  user: UserProfile | null;
-  session: Session | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string, role?: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  signUp: (email: string, password: string, role: string) => Promise<boolean>;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 interface AuthProviderProps {
   children: ReactNode;
 }
-
-const LOCAL_STORAGE_KEY = "egrant-auth-user";
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -45,18 +21,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+      async (event, newSession) => {
         console.log("Auth state changed:", event);
         setSession(newSession);
         
         if (newSession?.user) {
           // Don't fetch profile immediately to prevent recursive calls
-          setTimeout(() => {
-            fetchUserProfile(newSession.user);
+          setTimeout(async () => {
+            const profile = await fetchUserProfile(newSession.user);
+            if (profile) {
+              console.log("Setting user profile:", profile);
+              setUser(profile);
+            }
           }, 0);
         } else {
           setUser(null);
-          localStorage.removeItem(LOCAL_STORAGE_KEY);
+          clearAuthData();
         }
       }
     );
@@ -69,7 +49,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setSession(currentSession);
         
         if (currentSession?.user) {
-          await fetchUserProfile(currentSession.user);
+          const profile = await fetchUserProfile(currentSession.user);
+          if (profile) {
+            console.log("Setting initial user profile:", profile);
+            setUser(profile);
+          }
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
@@ -83,35 +67,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
   
-  const fetchUserProfile = async (authUser: User) => {
-    try {
-      // Fetch the user's profile to get role
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('role, full_name')
-        .eq('id', authUser.id)
-        .single();
-      
-      if (error) {
-        console.error("Error fetching user profile:", error);
-        return;
-      }
-      
-      const userData: UserProfile = {
-        id: authUser.id,
-        name: profile?.full_name || authUser.email?.split("@")[0] || "User",
-        email: authUser.email || "",
-        role: profile?.role || "researcher"
-      };
-      
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      console.error("Error in fetchUserProfile:", error);
-    }
-  };
-  
-  const signUp = async (email: string, password: string, role: string): Promise<boolean> => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    role: string, 
+    fullName?: string
+  ): Promise<boolean> => {
     try {
       if (!email || !password) {
         throw new Error("Email and password are required");
@@ -119,7 +80,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       const { data, error } = await supabase.auth.signUp({
         email,
-        password
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            role: role
+          }
+        }
       });
       
       if (error) {
@@ -129,29 +96,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       if (data.user) {
         console.log("Successfully signed up new user");
-        
-        // Wait for profile to be created by trigger
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Update the profile with the role
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ role })
-          .eq('id', data.user.id);
-          
-        if (updateError) {
-          console.error("Error updating profile:", updateError);
-        }
-        
-        const userData: UserProfile = {
-          id: data.user.id,
-          name: data.user.email?.split("@")[0] || "User",
-          email: data.user.email || "",
-          role
-        };
-        
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userData));
-        setUser(userData);
         return true;
       }
       
@@ -193,7 +137,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = async () => {
     try {
       await supabase.auth.signOut();
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      clearAuthData();
       setUser(null);
       setSession(null);
       

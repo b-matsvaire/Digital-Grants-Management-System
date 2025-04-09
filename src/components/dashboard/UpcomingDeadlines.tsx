@@ -1,4 +1,5 @@
 
+import { useState, useEffect } from "react";
 import { 
   CalendarIcon, 
   ChevronRight, 
@@ -7,6 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/components/auth";
+import { useNavigate } from "react-router-dom";
 
 type Deadline = {
   id: string;
@@ -14,33 +18,6 @@ type Deadline = {
   date: Date;
   type: "submission" | "report" | "review";
 };
-
-const deadlines: Deadline[] = [
-  {
-    id: "1",
-    title: "NIH Grant Submission",
-    date: new Date(2025, 4, 15), // May 15, 2025
-    type: "submission"
-  },
-  {
-    id: "2",
-    title: "Annual Progress Report",
-    date: new Date(2025, 3, 30), // April 30, 2025
-    type: "report"
-  },
-  {
-    id: "3",
-    title: "Peer Review Submission",
-    date: new Date(2025, 4, 5), // May 5, 2025
-    type: "review"
-  },
-  {
-    id: "4",
-    title: "Budget Justification",
-    date: new Date(2025, 4, 20), // May 20, 2025
-    type: "submission"
-  }
-];
 
 const getDeadlineColor = (type: Deadline["type"]) => {
   switch (type) {
@@ -56,7 +33,14 @@ const getDeadlineColor = (type: Deadline["type"]) => {
 };
 
 const UpcomingDeadlines = () => {
-  const sortedDeadlines = [...deadlines].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // In a real implementation, we would fetch deadlines from the database
+    // For now, we just show an empty state
+  }, [user]);
 
   return (
     <Card>
@@ -68,36 +52,44 @@ const UpcomingDeadlines = () => {
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        {sortedDeadlines.map((deadline) => {
-          const isPast = new Date() > deadline.date;
-          const distance = formatDistanceToNow(deadline.date, { addSuffix: true });
-          
-          return (
-            <div
-              key={deadline.id}
-              className="flex items-center justify-between p-3 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`p-2 rounded-md ${getDeadlineColor(deadline.type)}`}>
-                  <CalendarIcon className="h-5 w-5" />
+        {deadlines.length > 0 ? (
+          deadlines.map((deadline) => {
+            const isPast = new Date() > deadline.date;
+            const distance = formatDistanceToNow(deadline.date, { addSuffix: true });
+            
+            return (
+              <div
+                key={deadline.id}
+                className="flex items-center justify-between p-3 rounded-md hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-md ${getDeadlineColor(deadline.type)}`}>
+                    <CalendarIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium">{deadline.title}</h4>
+                    <p className={`text-xs ${isPast ? 'text-red-600' : 'text-gray-500'}`}>
+                      {deadline.date.toLocaleDateString()} ({distance})
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-medium">{deadline.title}</h4>
-                  <p className={`text-xs ${isPast ? 'text-red-600' : 'text-gray-500'}`}>
-                    {deadline.date.toLocaleDateString()} ({distance})
-                  </p>
-                </div>
+                <Button variant="ghost" size="icon">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-              <Button variant="ghost" size="icon">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          );
-        })}
+            );
+          })
+        ) : (
+          <div className="text-center py-6">
+            <p className="text-sm text-muted-foreground">No upcoming deadlines</p>
+          </div>
+        )}
         
-        <Button variant="outline" className="w-full mt-2" size="sm">
-          View All Deadlines
-        </Button>
+        {deadlines.length > 0 && (
+          <Button variant="outline" className="w-full mt-2" size="sm">
+            View All Deadlines
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

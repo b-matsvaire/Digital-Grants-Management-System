@@ -18,7 +18,7 @@ import {
   TableBody, 
   TableCell 
 } from "@/components/ui/table";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useAuth } from "@/components/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle } from "lucide-react";

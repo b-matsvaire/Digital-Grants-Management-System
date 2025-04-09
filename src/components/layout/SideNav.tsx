@@ -5,28 +5,32 @@ import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
   FileText, 
-  BarChart3, 
+  ClipboardCheck,
   Calendar, 
   Users, 
-  FileSpreadsheet, 
+  BarChart3, 
   Lightbulb,
-  FileCheck,
+  FileSpreadsheet,
   Settings,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  BookOpenCheck,
+  LineChart,
+  ShieldCheck,
+  BadgeDollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useAuth } from "@/components/auth";
 import { useNavigate } from "react-router-dom";
 
 type NavItem = {
   title: string;
   icon: React.ReactNode;
   href: string;
-  roles?: string[];
+  roles: string[];
 };
 
 const navItems: NavItem[] = [
@@ -40,17 +44,23 @@ const navItems: NavItem[] = [
     title: "My Grants", 
     icon: <FileText className="w-5 h-5" />, 
     href: "/my-grants", 
-    roles: ["researcher", "admin"] 
+    roles: ["researcher"] 
   },
   { 
     title: "Submit Grant", 
-    icon: <FileCheck className="w-5 h-5" />, 
+    icon: <ClipboardCheck className="w-5 h-5" />, 
     href: "/submit-grant", 
     roles: ["researcher"] 
   },
   { 
+    title: "All Grants", 
+    icon: <FileText className="w-5 h-5" />, 
+    href: "/all-grants", 
+    roles: ["admin", "institutional_admin"] 
+  },
+  { 
     title: "Review Grants", 
-    icon: <FileCheck className="w-5 h-5" />, 
+    icon: <BookOpenCheck className="w-5 h-5" />, 
     href: "/review-grants", 
     roles: ["reviewer", "admin"] 
   },
@@ -64,7 +74,7 @@ const navItems: NavItem[] = [
     title: "Calendar", 
     icon: <Calendar className="w-5 h-5" />, 
     href: "/calendar", 
-    roles: ["researcher", "admin", "reviewer"] 
+    roles: ["researcher", "admin", "reviewer", "institutional_admin"] 
   },
   { 
     title: "Team Members", 
@@ -74,7 +84,7 @@ const navItems: NavItem[] = [
   },
   { 
     title: "Financial Management", 
-    icon: <BarChart3 className="w-5 h-5" />, 
+    icon: <BadgeDollarSign className="w-5 h-5" />, 
     href: "/finance", 
     roles: ["admin", "institutional_admin"] 
   },
@@ -89,6 +99,18 @@ const navItems: NavItem[] = [
     icon: <FileSpreadsheet className="w-5 h-5" />, 
     href: "/documents", 
     roles: ["researcher", "admin", "reviewer", "institutional_admin"] 
+  },
+  { 
+    title: "Analytics", 
+    icon: <LineChart className="w-5 h-5" />, 
+    href: "/analytics", 
+    roles: ["admin", "institutional_admin"] 
+  },
+  { 
+    title: "User Management", 
+    icon: <ShieldCheck className="w-5 h-5" />, 
+    href: "/user-management", 
+    roles: ["institutional_admin"] 
   },
   { 
     title: "Settings", 
@@ -120,7 +142,7 @@ const SideNav = ({ userRole = "researcher" }: SideNavProps) => {
   const currentRole = user?.role || userRole;
   
   const filteredNavItems = navItems.filter(
-    item => !item.roles || item.roles.includes(currentRole)
+    item => item.roles.includes(currentRole)
   );
 
   const handleLogout = () => {

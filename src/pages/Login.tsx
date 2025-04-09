@@ -1,164 +1,269 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/components/auth/AuthContext";
-import { AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/components/auth";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("researcher");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { login, isAuthenticated, signUp } = useAuth();
-  const { toast } = useToast();
+  const { login, signUp, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("login");
+  const [isLoading, setIsLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Form states
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState("researcher");
   
-  // Get the redirect path from location state or default to "/"
+  // Get the path to redirect to after login
   const from = location.state?.from?.pathname || "/";
-  
-  // Check if user is already logged in, redirect if true
+
+  // Check if already logged in
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate(from, { replace: true });
-    }
+    const checkAuth = setTimeout(() => {
+      setCheckingAuth(false);
+      if (isAuthenticated) {
+        navigate(from, { replace: true });
+      }
+    }, 500);
+
+    return () => clearTimeout(checkAuth);
   }, [isAuthenticated, navigate, from]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setIsLoading(true);
-
+    
     try {
-      if (!email || !password) {
-        throw new Error("Email and password are required");
-      }
-
-      let success = false;
-      
-      if (isSignUp) {
-        // Sign up flow
-        success = await signUp(email, password, role);
-      } else {
-        // Login flow
-        success = await login(email, password);
-      }
-      
-      if (success) {
-        toast({
-          title: isSignUp ? "Account created" : "Login successful",
-          description: isSignUp 
-            ? "Your account has been created and you've been logged in." 
-            : "Welcome back to the Grant Management System.",
-          duration: 5000,
-        });
-        navigate(from, { replace: true });
-      } else {
-        setError("Authentication failed. Please try again.");
-      }
+      await login(email, password);
+      toast({
+        title: "Login Successful",
+        description: "You have been successfully logged in.",
+      });
+      navigate(from, { replace: true });
     } catch (error: any) {
-      console.error("Authentication error:", error);
-      
-      if (error.message.includes("User already registered")) {
-        setError("This email is already registered. Please sign in instead.");
-      } else if (error.message.includes("Invalid login credentials")) {
-        setError("Invalid email or password. Please try again.");
-      } else {
-        setError(error.message || "An error occurred during authentication. Please try again.");
-      }
+      toast({
+        title: "Login Failed",
+        description: error.message || "Failed to login. Please check your credentials.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      await signUp(email, password, role, fullName);
+      toast({
+        title: "Registration Successful",
+        description: "Your account has been created. You can now login.",
+      });
+      setActiveTab("login");
+    } catch (error: any) {
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Failed to create account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (checkingAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold">AU Clinical Research Centre</h1>
-          <p className="text-slate-600 mt-2">Digital Grants Management System</p>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+      <div className="w-full max-w-screen-xl mx-auto flex flex-col md:flex-row md:items-center">
+        <div className="flex-1 p-8 hidden md:block">
+          <div className="text-center md:text-left mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold text-primary">
+              E-Grant Management System
+            </h1>
+            <p className="text-lg mt-2 text-muted-foreground">
+              Africa University Clinical Research Centre
+            </p>
+          </div>
+          <div className="space-y-6">
+            <div className="flex items-start">
+              <div className="mr-4 p-2 bg-primary/10 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M3 7v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7"></path><polyline points="3 7 12 13 21 7"></polyline></svg>
+              </div>
+              <div>
+                <h3 className="font-medium">Apply for Grants</h3>
+                <p className="text-sm text-muted-foreground">Submit and track grant applications seamlessly</p>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <div className="mr-4 p-2 bg-primary/10 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M4 11v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"></path><path d="M20 11V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v4"></path><rect x="8" y="11" width="8" height="8"></rect></svg>
+              </div>
+              <div>
+                <h3 className="font-medium">Manage Research</h3>
+                <p className="text-sm text-muted-foreground">Organize your research portfolio efficiently</p>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <div className="mr-4 p-2 bg-primary/10 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"></path><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+              </div>
+              <div>
+                <h3 className="font-medium">Track Progress</h3>
+                <p className="text-sm text-muted-foreground">Monitor grant status and manage deliverables</p>
+              </div>
+            </div>
+          </div>
         </div>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>{isSignUp ? "Create an account" : "Sign in to your account"}</CardTitle>
-            <CardDescription>
-              Enter your email and password to {isSignUp ? "create an account" : "sign in"}
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  placeholder="name@example.com" 
-                  required 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  required 
-                />
-              </div>
-              
-              {isSignUp && (
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <select
-                    id="role"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                  >
-                    <option value="researcher">Researcher</option>
-                    <option value="admin">Administrator</option>
-                    <option value="reviewer">Reviewer</option>
-                    <option value="institutional_admin">Institutional Admin</option>
-                  </select>
-                </div>
-              )}
+
+        <div className="flex-1">
+          <Card className="w-full max-w-md mx-auto">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl">Welcome</CardTitle>
+              <CardDescription>
+                Sign in or create an account to get started
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="login">Login</TabsTrigger>
+                  <TabsTrigger value="register">Register</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="login">
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email">Email</Label>
+                      <Input 
+                        id="login-email" 
+                        type="email" 
+                        placeholder="Enter your email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <Input 
+                        id="login-password" 
+                        type="password" 
+                        placeholder="Enter your password" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Signing in...
+                        </>
+                      ) : (
+                        "Sign In"
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="register">
+                  <form onSubmit={handleSignUp} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="register-name">Full Name</Label>
+                      <Input 
+                        id="register-name" 
+                        placeholder="Enter your full name" 
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-email">Email</Label>
+                      <Input 
+                        id="register-email" 
+                        type="email" 
+                        placeholder="Enter your email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-password">Password</Label>
+                      <Input 
+                        id="register-password" 
+                        type="password" 
+                        placeholder="Create a password" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select value={role} onValueChange={setRole}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="researcher">Researcher</SelectItem>
+                          <SelectItem value="reviewer">Reviewer</SelectItem>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="institutional_admin">Institutional Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating Account...
+                        </>
+                      ) : (
+                        "Create Account"
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
             </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button className="w-full" type="submit" disabled={isLoading}>
-                {isLoading ? "Processing..." : isSignUp ? "Create account" : "Sign in"}
-              </Button>
-              <p className="text-sm text-center text-gray-500">
-                {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-                <button
-                  type="button"
-                  className="text-primary hover:underline font-medium"
-                  onClick={() => setIsSignUp(!isSignUp)}
-                >
-                  {isSignUp ? "Sign in" : "Create one"}
-                </button>
-              </p>
+            <CardFooter className="text-center text-sm text-muted-foreground">
+              {activeTab === "login" ? 
+                "Don't have an account? Click Register above." : 
+                "Already have an account? Click Login above."
+              }
             </CardFooter>
-          </form>
-        </Card>
+          </Card>
+        </div>
       </div>
     </div>
   );

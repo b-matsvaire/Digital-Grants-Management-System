@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { 
   Card, 
@@ -17,35 +16,24 @@ import {
   TableBody, 
   TableCell 
 } from "@/components/ui/table";
-import { CheckCircle2, Clock, XCircle, Eye, Calendar, User, FileText, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Eye, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth";
 import { Grant } from "@/types/grants";
 import { useToast } from "@/components/ui/use-toast";
-import { Input } from "@/components/ui/input";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   AlertDescription
 } from "@/components/ui/alert";
 
-const MyGrants = () => {
+const ReviewGrants = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [grants, setGrants] = useState<Grant[]>([]);
-  const [filteredGrants, setFilteredGrants] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [categoryFilter, setcategoryFilter] = useState<string>("all");
 
   useEffect(() => {
     const fetchGrants = async () => {
@@ -55,20 +43,24 @@ const MyGrants = () => {
 
         let query = supabase.from('grants').select('*');
         
-        // If user is a researcher, only fetch their grants
-        if (user.role === 'researcher') {
-          query = query.eq('submitter_id', user.id);
+        // Only reviewers and admins should see grants under review
+        if (user.role === 'reviewer') {
+          query = query.eq('status', 'under_review');
+        } else if (user.role === 'admin' || user.role === 'institutional_admin') {
+          // Admins can see all grants that need review
+          query = query.or('status.in.(submitted,under_review)');
+        } else {
+          // Redirect unauthorized users
+          navigate('/');
+          return;
         }
-        // For admin and institutional_admin roles, fetch all grants
-        // No filtering needed for admin roles, they should see all grants
         
         const { data, error } = await query.order('created_at', { ascending: false });
         
         if (error) throw error;
-        
-        console.log("MyGrants - Fetched grants:", data, "User role:", user.role);
+
+        console.log("ReviewGrants - Fetched grants:", data, "User role:", user.role);
         setGrants(data || []);
-        setFilteredGrants(data || []);
       } catch (error: any) {
         console.error('Error fetching grants:', error);
         setError("Failed to load grants. Please try again.");
@@ -84,33 +76,7 @@ const MyGrants = () => {
     };
 
     fetchGrants();
-  }, [user, toast]);
-
-  useEffect(() => {
-    // Apply filters
-    let result = grants;
-    
-    // Apply search filter
-    if (searchTerm) {
-      result = result.filter(grant => 
-        grant.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (grant.funder && grant.funder.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        grant.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    // Apply status filter
-    if (statusFilter !== "all") {
-      result = result.filter(grant => grant.status === statusFilter);
-    }
-    
-    // Apply category filter
-    if (categoryFilter !== "all") {
-      result = result.filter(grant => grant.category === categoryFilter);
-    }
-    
-    setFilteredGrants(result);
-  }, [searchTerm, statusFilter, categoryFilter, grants]);
+  }, [user, navigate, toast]);
 
   const StatusBadge = ({ status }: { status: Grant['status'] }) => {
     const statusConfig = {
@@ -162,19 +128,41 @@ const MyGrants = () => {
     navigate(`/grants/${id}`);
   };
 
-  // Get unique categories for the filter
-  const categories = grants.length > 0 
-    ? ['all', ...Array.from(new Set(grants.map(grant => grant.category)))]
-    : ['all'];
+  const updateGrantStatus = async (id: string, status: 'under_review' | 'approved' | 'rejected') => {
+    try {
+      const { error } = await supabase
+        .from('grants')
+        .update({ status })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      // Update the local state without refetching
+      setGrants(prev => 
+        prev.map(grant => 
+          grant.id === id ? { ...grant, status } : grant
+        )
+      );
+      
+      toast({
+        title: "Grant Updated",
+        description: `The grant has been marked as ${status.replace('_', ' ')}.`,
+      });
+    } catch (error) {
+      console.error('Error updating grant status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update grant status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">My Grants</h1>
-          <Button onClick={() => navigate('/submit-grant')}>
-            Submit New Grant
-          </Button>
+          <h1 className="text-3xl font-bold">Grants for Review</h1>
         </div>
         
         {error && (
@@ -183,46 +171,6 @@ const MyGrants = () => {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="w-full sm:w-2/4">
-            <Input
-              placeholder="Search by title, funder or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="w-full sm:w-1/4">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-full sm:w-1/4">
-            <Select value={categoryFilter} onValueChange={setcategoryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.filter(cat => cat !== 'all').map(category => (
-                  <SelectItem key={category} value={category}>
-                    {category.charAt(0).toUpperCase() + category.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
         
         <Card>
           <CardHeader>
@@ -233,14 +181,11 @@ const MyGrants = () => {
               <div className="flex justify-center p-6">
                 <p>Loading grants...</p>
               </div>
-            ) : filteredGrants.length === 0 ? (
+            ) : grants.length === 0 ? (
               <div className="text-center p-8">
                 <p className="text-muted-foreground mb-4">
-                  {grants.length === 0 ? "No grant applications found" : "No grants match your filters"}
+                  No grant applications available for review
                 </p>
-                {grants.length === 0 && (
-                  <Button onClick={() => navigate('/submit-grant')}>Submit Your First Grant</Button>
-                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -249,24 +194,20 @@ const MyGrants = () => {
                     <TableRow>
                       <TableHead>Title</TableHead>
                       <TableHead>Funder</TableHead>
-                      <TableHead>Category</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Timeline</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredGrants.map((grant) => (
+                    {grants.map((grant) => (
                       <TableRow key={grant.id}>
                         <TableCell className="font-medium max-w-[250px] truncate">
                           {grant.title}
                         </TableCell>
                         <TableCell className="text-sm">
                           {grant.funder || 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {grant.category}
                         </TableCell>
                         <TableCell className="text-right">
                           ${grant.funding_amount.toLocaleString()}
@@ -277,11 +218,46 @@ const MyGrants = () => {
                         <TableCell className="text-sm text-muted-foreground">
                           {grant.duration} months
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-right space-x-2 whitespace-nowrap">
                           <Button variant="ghost" size="sm" onClick={() => viewGrant(grant.id)}>
                             <Eye className="h-4 w-4 mr-1" />
                             View
                           </Button>
+                          
+                          {user?.role === 'admin' && grant.status === 'submitted' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => updateGrantStatus(grant.id, 'under_review')}
+                            >
+                              <Clock className="h-4 w-4 mr-1" />
+                              Start Review
+                            </Button>
+                          )}
+                          
+                          {(user?.role === 'admin' || user?.role === 'reviewer') && 
+                           (grant.status === 'submitted' || grant.status === 'under_review') && (
+                            <>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                onClick={() => updateGrantStatus(grant.id, 'approved')}
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                className="bg-red-50 text-red-700 hover:bg-red-100"
+                                onClick={() => updateGrantStatus(grant.id, 'rejected')}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -296,4 +272,4 @@ const MyGrants = () => {
   );
 };
 
-export default MyGrants;
+export default ReviewGrants;

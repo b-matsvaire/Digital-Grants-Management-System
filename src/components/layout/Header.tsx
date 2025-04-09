@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useAuth } from "@/components/auth";
 import { useNavigate } from "react-router-dom";
 
 const Header = () => {
@@ -132,11 +132,13 @@ const Header = () => {
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder.svg" />
                 <AvatarFallback>
-                  {user?.name?.[0]?.toUpperCase() || "U"}
+                  {user?.name ? user.name[0].toUpperCase() : "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden md:block text-left">
-                <div className="text-sm font-medium">{user?.name || "User"}</div>
+                <div className="text-sm font-medium">
+                  {user?.name || "Loading..."}
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {user?.role === "researcher"
                     ? "Researcher"
@@ -144,8 +146,8 @@ const Header = () => {
                     ? "Administrator"
                     : user?.role === "reviewer"
                     ? "Reviewer"
-                    : user?.role === "finance"
-                    ? "Finance Officer"
+                    : user?.role === "institutional_admin"
+                    ? "Institutional Admin"
                     : "User"}
                 </div>
               </div>

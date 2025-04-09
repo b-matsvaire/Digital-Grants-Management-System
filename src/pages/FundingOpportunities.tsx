@@ -22,17 +22,17 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, ExternalLink, Search, FileText, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useAuth } from "@/components/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { FundingCall } from "@/types/grants";
+import { FundingOpportunity } from "@/types/grants";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const FundingOpportunities = () => {
   const { user } = useAuth();
-  const [fundingCalls, setFundingCalls] = useState<FundingCall[]>([]);
-  const [filteredCalls, setFilteredCalls] = useState<FundingCall[]>([]);
+  const [fundingCalls, setFundingCalls] = useState<FundingOpportunity[]>([]);
+  const [filteredCalls, setFilteredCalls] = useState<FundingOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
